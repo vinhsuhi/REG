@@ -50,10 +50,7 @@ def preprocess_raw_image(x, enc_type):
     elif 'dinov2' in enc_type:
         x = x / 255.
         x = Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD)(x)
-        if resolution == 256:
-            x = torch.nn.functional.interpolate(x, 224 * (resolution // 256), mode='bicubic')
-        else:
-            x = torch.nn.functional.interpolate(x, 448, mode='bicubic')
+        x = torch.nn.functional.interpolate(x, 224 * (resolution // 256), mode='bicubic')
     elif 'dinov1' in enc_type:
         x = x / 255.
         x = Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD)(x)
@@ -167,7 +164,7 @@ def main(args):
     else:
         raise NotImplementedError()
     z_dims = [encoder.embed_dim for encoder in encoders] if args.enc_type != 'None' else [0]
-    block_kwargs = {"fused_attn": args.fused_attn, "qk_norm": args.qk_norm, "ops_head": args.ops_head}
+    block_kwargs = {"fused_attn": args.fused_attn, "qk_norm": args.qk_norm}
     model = SiT_models[args.model](
         input_size=latent_size,
         num_classes=args.num_classes,
@@ -179,7 +176,6 @@ def main(args):
 
     model = model.to(device)
     ema = deepcopy(model).to(device)  # Create an EMA of the model for use after training
-
     requires_grad(ema, False)
     
     latents_scale = torch.tensor(
@@ -216,7 +212,7 @@ def main(args):
     )    
     
     # Setup data:
-    train_dataset = CustomDataset(args.data_dir, args)
+    train_dataset = CustomDataset(args.data_dir)
     local_batch_size = int(args.batch_size // accelerator.num_processes)
     train_dataloader = DataLoader(
         train_dataset,
@@ -251,15 +247,15 @@ def main(args):
         model, optimizer, train_dataloader
     )
 
-    # if accelerator.is_main_process:
-    #     tracker_config = vars(copy.deepcopy(args))
-    #     accelerator.init_trackers(
-    #         project_name="REG",
-    #         config=tracker_config,
-    #         init_kwargs={
-    #             "wandb": {"name": f"{args.exp_name}"}
-    #         },
-    #     )
+    if accelerator.is_main_process:
+        tracker_config = vars(copy.deepcopy(args))
+        accelerator.init_trackers(
+            project_name="REG",
+            config=tracker_config,
+            init_kwargs={
+                "wandb": {"name": f"{args.exp_name}"}
+            },
+        )
 
         
     progress_bar = tqdm(
@@ -306,7 +302,6 @@ def main(args):
                     for encoder, encoder_type, arch in zip(encoders, encoder_types, architectures):
                         raw_image_ = preprocess_raw_image(raw_image, encoder_type)
                         z = encoder.forward_features(raw_image_)
-                        #if 'mocov3' in encoder_type: z = z = z[:, 1:]
                         if 'dinov2' in encoder_type:
                             dense_z = z['x_norm_patchtokens']
                             cls_token = z['x_norm_clstoken']
@@ -320,10 +315,11 @@ def main(args):
                 loss1, proj_loss1, time_input, noises, loss2 = loss_fn(model, x, model_kwargs, zs=zs,
                                                                        cls_token=cls_token,
                                                                        time_input=None, noises=None)
-                loss_mean1 = loss1.mean()
-                loss_mean2 = loss2.mean() * args.cls
-                proj_loss_mean1 = proj_loss1.mean() * args.proj_coeff
-                loss = loss_mean1 + proj_loss_mean1 + loss_mean2
+                loss_mean = loss1.mean()
+                loss_mean_cls = loss2.mean() * args.cls
+                proj_loss_mean = proj_loss1.mean() * args.proj_coeff
+                loss = loss_mean + proj_loss_mean + loss_mean_cls
+
 
                 ## optimization
                 accelerator.backward(loss)
@@ -354,34 +350,13 @@ def main(args):
                     logger.info(f"Saved checkpoint to {checkpoint_path}")
 
             if (global_step == 1 or (global_step % args.sampling_steps == 0 and global_step > 0)):
-                # from samplers import euler_sampler
-                # with torch.no_grad():
-                #     samples = euler_sampler(
-                #         model,
-                #         xT,
-                #         ys,
-                #         num_steps=50,
-                #         cfg_scale=4.0,
-                #         guidance_low=0.,
-                #         guidance_high=1.,
-                #         path_type=args.path_type,
-                #         heun=False,
-                #     ).to(torch.float32)
-                #     samples = vae.decode((samples -  latents_bias) / latents_scale).sample
-                #     gt_samples = vae.decode((gt_xs - latents_bias) / latents_scale).sample
-                #     samples = (samples + 1) / 2.
-                #     gt_samples = (gt_samples + 1) / 2.
-                # out_samples = accelerator.gather(samples.to(torch.float32))
-                # gt_samples = accelerator.gather(gt_samples.to(torch.float32))
-                # accelerator.log({"samples": wandb.Image(array2grid(out_samples)),
-                #                  "gt_samples": wandb.Image(array2grid(gt_samples))})
                 logging.info("Generating EMA samples done.")
 
             logs = {
                 "loss_final": accelerator.gather(loss).mean().detach().item(),
-                "loss1": accelerator.gather(loss_mean1).mean().detach().item(),
-                "proj_loss1": accelerator.gather(proj_loss_mean1).mean().detach().item(),
-                "loss2": accelerator.gather(loss_mean2).mean().detach().item(),
+                "loss_mean": accelerator.gather(loss_mean).mean().detach().item(),
+                "proj_loss": accelerator.gather(proj_loss_mean).mean().detach().item(),
+                "loss_mean_cls": accelerator.gather(loss_mean_cls).mean().detach().item(),
                 "grad_norm": accelerator.gather(grad_norm).mean().detach().item()
             }
 
@@ -458,7 +433,7 @@ def parse_args(input_args=None):
     parser.add_argument("--proj-coeff", type=float, default=0.5)
     parser.add_argument("--weighting", default="uniform", type=str, help="Max gradient norm.")
     parser.add_argument("--legacy", action=argparse.BooleanOptionalAction, default=False)
-    parser.add_argument("--cls", type=float, default=0.5)
+    parser.add_argument("--cls", type=float, default=0.03)
     if input_args is not None:
         args = parser.parse_args(input_args)
     else:

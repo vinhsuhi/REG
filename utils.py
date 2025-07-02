@@ -88,9 +88,17 @@ def load_encoders(enc_type, device, resolution=256):
         elif 'dinov2' in encoder_type:
             import timm
             if 'reg' in encoder_type:
-                encoder = torch.hub.load('facebookresearch/dinov2', f'dinov2_vit{model_config}14_reg')
+                try:
+                    encoder = torch.hub.load('your_path/.cache/torch/hub/facebookresearch_dinov2_main',
+                                            f'dinov2_vit{model_config}14_reg', source='local')
+                except:
+                    encoder = torch.hub.load('facebookresearch/dinov2', f'dinov2_vit{model_config}14_reg')
             else:
-                encoder = torch.hub.load('facebookresearch/dinov2', f'dinov2_vit{model_config}14')
+                try:
+                    encoder = torch.hub.load('your_path/.cache/torch/hub/facebookresearch_dinov2_main',
+                                             f'dinov2_vit{model_config}14', source='local')
+                except:
+                    encoder = torch.hub.load('facebookresearch/dinov2', f'dinov2_vit{model_config}14')
 
             print(f"Now you are using the {enc_name} as the aligning model")
             del encoder.head

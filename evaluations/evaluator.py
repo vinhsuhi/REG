@@ -32,6 +32,7 @@ def main():
     parser.add_argument("--cfg_cond", default=1, type=int)
     parser.add_argument("--step", default=1, type=int)
     parser.add_argument("--cfg", default=1.0, type=float)
+    parser.add_argument("--cls_cfg", default=1.0, type=float)
     parser.add_argument("--gh", default=1.0, type=float)
     parser.add_argument("--num_steps", default=250, type=int)
     args = parser.parse_args()
@@ -74,9 +75,9 @@ def main():
     print("Recall:", recall)
 
     if args.cfg_cond:
-        file_path = args.save_path + str(args.num_steps) + str(args.step) + str(args.cfg) + str(args.gh) + "cfg_cond_true.txt"
+        file_path = args.save_path + str(args.num_steps) + str(args.step) + str(args.cfg) + str(args.gh) + str(args.cls_cfg)+ "cfg_cond_true.txt"
     else:
-        file_path = args.save_path + str(args.num_steps) + str(args.step) + str(args.cfg) + str(args.gh) + "cfg_cond_false.txt"
+        file_path = args.save_path + str(args.num_steps) + str(args.step) + str(args.cfg) + str(args.gh) + str(args.cls_cfg)+ "cfg_cond_false.txt"
     with open(file_path, "w") as file:
         file.write("Inception Score: {}\n".format(Inception_Score))
         file.write("FID: {}\n".format(FID))

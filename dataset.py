@@ -14,16 +14,12 @@ except ImportError:
 
 
 class CustomDataset(Dataset):
-    def __init__(self, data_dir, args):
+    def __init__(self, data_dir):
         PIL.Image.init()
         supported_ext = PIL.Image.EXTENSION.keys() | {'.npy'}
 
-        if args.resolution == 256:
-            self.images_dir = os.path.join(data_dir, 'imagenet_256_vae')
-            self.features_dir = os.path.join(data_dir, 'vae-sd')
-        else:
-            self.images_dir = os.path.join(data_dir, 'imagenet_512_vae')
-            self.features_dir = os.path.join(data_dir, 'vae-sd-512')
+        self.images_dir = os.path.join(data_dir, 'imagenet_256_vae')
+        self.features_dir = os.path.join(data_dir, 'vae-sd')
 
         # images
         self._image_fnames = {
@@ -42,9 +38,12 @@ class CustomDataset(Dataset):
             fname for fname in self._feature_fnames if self._file_ext(fname) in supported_ext
             )
 
-
         # labels
-        fname = self.features_dir + '/dataset.json'
+        fname = os.path.join(self.features_dir, 'dataset.json')
+        if os.path.exists(fname):
+            print(f"Using {fname}.")
+        else:
+            raise FileNotFoundError("Neither of the specified files exists.")
 
         with open(fname, 'rb') as f:
             labels = json.load(f)['labels']

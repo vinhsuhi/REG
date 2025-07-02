@@ -218,6 +218,7 @@ class SiT(nn.Module):
         cls_token_dim = z_dim
         self.final_layer = FinalLayer(decoder_hidden_size, patch_size, self.out_channels, cls_token_dim)
 
+
         self.cls_projectors2 = nn.Linear(in_features=cls_token_dim, out_features=hidden_size, bias=True)
         self.wg_norm = nn.LayerNorm(hidden_size, elementwise_affine=True, eps=1e-6)
 
@@ -286,7 +287,7 @@ class SiT(nn.Module):
         y: (N,) tensor of class labels
         """
 
-        # cat x and cls_token
+        #cat with cls_token
         x = self.x_embedder(x)   # (N, T, D), where T = H * W / patch_size ** 2
         if cls_token is not None:
             cls_token = self.cls_projectors2(cls_token)
@@ -298,18 +299,15 @@ class SiT(nn.Module):
             exit()
         N, T, D = x.shape
 
-
         # timestep and class embedding
         t_embed = self.t_embedder(t)                   # (N, D)
         y = self.y_embedder(y, self.training)    # (N, D)
-        c = t_embed + y                                # (N, D)
-
+        c = t_embed + y
 
         for i, block in enumerate(self.blocks):
-            x = block(x, c)                      # (N, T, D)
+            x = block(x, c)
             if (i + 1) == self.encoder_depth:
                 zs = [projector(x.reshape(-1, D)).reshape(N, T, -1) for projector in self.projectors]
-
 
         x, cls_token = self.final_layer(x, c, cls=cls_token)
         x = self.unpatchify(x)

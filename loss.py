@@ -68,7 +68,6 @@ class SILoss:
                 
         time_input = time_input.to(device=images.device, dtype=images.dtype)
 
-        #We add noise to cls_token
         if noises is None:
             noises = torch.randn_like(images)
             noises_cls = torch.randn_like(cls_token)
@@ -77,30 +76,27 @@ class SILoss:
 
         model_input = alpha_t * images + sigma_t * noises
         cls_input = alpha_t.squeeze(-1).squeeze(-1) * cls_token + sigma_t.squeeze(-1).squeeze(-1) * noises_cls
-
         if self.prediction == 'v':
             model_target = d_alpha_t * images + d_sigma_t * noises
             cls_target = d_alpha_t * cls_token + d_sigma_t * noises_cls
         else:
             raise NotImplementedError()
 
-        if len(zs)>1:
-            exit()
         model_output, zs_tilde, cls_output = model(model_input, time_input.flatten(), **model_kwargs,
-                                                   cls_token=cls_input)
+                                                    cls_token=cls_input)
 
+        #denoising_loss
         denoising_loss = mean_flat((model_output - model_target) ** 2)
-        denoising_loss2 = mean_flat((cls_output - cls_target) ** 2)
-
+        denoising_loss_cls = mean_flat((cls_output - cls_target) ** 2)
 
         # projection loss
         proj_loss = 0.
         bsz = zs[0].shape[0]
-        for i, (z, z_tilde) in enumerate(zip(zs, zs_tilde)):#zs[8, 256, 768]
+        for i, (z, z_tilde) in enumerate(zip(zs, zs_tilde)):
             for j, (z_j, z_tilde_j) in enumerate(zip(z, z_tilde)):
                 z_tilde_j = torch.nn.functional.normalize(z_tilde_j, dim=-1) 
                 z_j = torch.nn.functional.normalize(z_j, dim=-1) 
                 proj_loss += mean_flat(-(z_j * z_tilde_j).sum(dim=-1))
         proj_loss /= (len(zs) * bsz)
 
-        return denoising_loss, proj_loss, time_input, noises, denoising_loss2
+        return denoising_loss, proj_loss, time_input, noises, denoising_loss_cls

@@ -43,65 +43,6 @@ def compute_diffusion(t_cur):
     return 2 * t_cur
 
 
-def euler_sampler(
-        model,
-        latents,
-        y,
-        num_steps=20,
-        heun=False,
-        cfg_scale=1.0,
-        guidance_low=0.0,
-        guidance_high=1.0,
-        path_type="linear", # not used, just for compatability
-        ):
-    # setup conditioning
-    if cfg_scale > 1.0:
-        y_null = torch.tensor([1000] * y.size(0), device=y.device)
-    _dtype = latents.dtype    
-    t_steps = torch.linspace(1, 0, num_steps+1, dtype=torch.float64)
-    x_next = latents.to(torch.float64)
-    device = x_next.device
-
-    with torch.no_grad():
-        for i, (t_cur, t_next) in enumerate(zip(t_steps[:-1], t_steps[1:])):
-            x_cur = x_next
-            if cfg_scale > 1.0 and t_cur <= guidance_high and t_cur >= guidance_low:
-                model_input = torch.cat([x_cur] * 2, dim=0)
-                y_cur = torch.cat([y, y_null], dim=0)
-            else:
-                model_input = x_cur
-                y_cur = y            
-            kwargs = dict(y=y_cur)
-            time_input = torch.ones(model_input.size(0)).to(device=device, dtype=torch.float64) * t_cur
-            d_cur = model(
-                model_input.to(dtype=_dtype), time_input.to(dtype=_dtype), **kwargs
-                )[0].to(torch.float64)
-            if cfg_scale > 1. and t_cur <= guidance_high and t_cur >= guidance_low:
-                d_cur_cond, d_cur_uncond = d_cur.chunk(2)
-                d_cur = d_cur_uncond + cfg_scale * (d_cur_cond - d_cur_uncond)                
-            x_next = x_cur + (t_next - t_cur) * d_cur
-            if heun and (i < num_steps - 1):
-                if cfg_scale > 1.0 and t_cur <= guidance_high and t_cur >= guidance_low:
-                    model_input = torch.cat([x_next] * 2)
-                    y_cur = torch.cat([y, y_null], dim=0)
-                else:
-                    model_input = x_next
-                    y_cur = y
-                kwargs = dict(y=y_cur)
-                time_input = torch.ones(model_input.size(0)).to(
-                    device=model_input.device, dtype=torch.float64
-                    ) * t_next
-                d_prime = model(
-                    model_input.to(dtype=_dtype), time_input.to(dtype=_dtype), **kwargs
-                    )[0].to(torch.float64)
-                if cfg_scale > 1.0 and t_cur <= guidance_high and t_cur >= guidance_low:
-                    d_prime_cond, d_prime_uncond = d_prime.chunk(2)
-                    d_prime = d_prime_uncond + cfg_scale * (d_prime_cond - d_prime_uncond)
-                x_next = x_cur + (t_next - t_cur) * (0.5 * d_cur + 0.5 * d_prime)
-                
-    return x_next
-
-
 def euler_maruyama_sampler(
         model,
         latents,
@@ -112,14 +53,16 @@ def euler_maruyama_sampler(
         guidance_low=0.0,
         guidance_high=1.0,
         path_type="linear",
-        cls_latents=None
+        cls_latents=None,
+        args=None
         ):
     # setup conditioning
     if cfg_scale > 1.0:
         y_null = torch.tensor([1000] * y.size(0), device=y.device)
         #[1000, 1000]
     _dtype = latents.dtype
-    
+
+
     t_steps = torch.linspace(1., 0.04, num_steps, dtype=torch.float64)
     t_steps = torch.cat([t_steps, torch.tensor([0.], dtype=torch.float64)])
     x_next = latents.to(torch.float64)
@@ -130,10 +73,8 @@ def euler_maruyama_sampler(
     with torch.no_grad():
         for i, (t_cur, t_next) in enumerate(zip(t_steps[:-2], t_steps[1:-1])):
             dt = t_next - t_cur
-            # x_cur [b, 4, 32, 32]
             x_cur = x_next
             cls_x_cur = cls_x_next
-            #[2,4,32,32]->[4,4,32,32]  [2]->[4]
 
             if cfg_scale > 1.0 and t_cur <= guidance_high and t_cur >= guidance_low:
                 model_input = torch.cat([x_cur] * 2, dim=0)
@@ -144,14 +85,12 @@ def euler_maruyama_sampler(
                 cls_model_input = cls_x_cur
                 y_cur = y
 
-
             kwargs = dict(y=y_cur)
             time_input = torch.ones(model_input.size(0)).to(device=device, dtype=torch.float64) * t_cur
             diffusion = compute_diffusion(t_cur)
 
             eps_i = torch.randn_like(x_cur).to(device)
             cls_eps_i = torch.randn_like(cls_x_cur).to(device)
-            #deps [b, 4, 32 ,32]
             deps = eps_i * torch.sqrt(torch.abs(dt))
             cls_deps = cls_eps_i * torch.sqrt(torch.abs(dt))
 
@@ -163,22 +102,22 @@ def euler_maruyama_sampler(
             cls_v_cur = cls_v_cur.to(torch.float64)
 
             s_cur = get_score_from_velocity(v_cur, model_input, time_input, path_type=path_type)
-            d_cur = v_cur - 0.5 * diffusion * s_cur#d_cur [b, 4, 32 ,32]
+            d_cur = v_cur - 0.5 * diffusion * s_cur
 
             cls_s_cur = get_score_from_velocity(cls_v_cur, cls_model_input, time_input, path_type=path_type)
-            cls_d_cur = cls_v_cur - 0.5 * diffusion * cls_s_cur#d_cur [b, 4, 32 ,32]
+            cls_d_cur = cls_v_cur - 0.5 * diffusion * cls_s_cur
 
             if cfg_scale > 1. and t_cur <= guidance_high and t_cur >= guidance_low:
                 d_cur_cond, d_cur_uncond = d_cur.chunk(2)
                 d_cur = d_cur_uncond + cfg_scale * (d_cur_cond - d_cur_uncond)
 
                 cls_d_cur_cond, cls_d_cur_uncond = cls_d_cur.chunk(2)
-                cls_d_cur = cls_d_cur_uncond + cfg_scale * (cls_d_cur_cond - cls_d_cur_uncond)
-
+                if args.cls_cfg_scale >0:
+                    cls_d_cur = cls_d_cur_uncond + args.cls_cfg_scale * (cls_d_cur_cond - cls_d_cur_uncond)
+                else:
+                    cls_d_cur = cls_d_cur_cond
             x_next =  x_cur + d_cur * dt + torch.sqrt(diffusion) * deps
             cls_x_next = cls_x_cur + cls_d_cur * dt + torch.sqrt(diffusion) * cls_deps
-
-
 
     # last step
     t_cur, t_next = t_steps[-2], t_steps[-1]
@@ -219,7 +158,10 @@ def euler_maruyama_sampler(
         d_cur = d_cur_uncond + cfg_scale * (d_cur_cond - d_cur_uncond)
 
         cls_d_cur_cond, cls_d_cur_uncond = cls_d_cur.chunk(2)
-        cls_d_cur = cls_d_cur_uncond + cfg_scale * (cls_d_cur_cond - cls_d_cur_uncond)
+        if args.cls_cfg_scale > 0:
+            cls_d_cur = cls_d_cur_uncond + args.cls_cfg_scale * (cls_d_cur_cond - cls_d_cur_uncond)
+        else:
+            cls_d_cur = cls_d_cur_cond
 
     mean_x = x_cur + dt * d_cur
     cls_mean_x = cls_x_cur + dt * cls_d_cur

@@ -21,7 +21,7 @@ from PIL import Image
 import numpy as np
 import math
 import argparse
-from samplers import euler_sampler, euler_maruyama_sampler
+from samplers import euler_maruyama_sampler
 from utils import load_legacy_checkpoints, download_model
 
 
@@ -60,7 +60,7 @@ def main(args):
     print(f"Starting rank={rank}, seed={seed}, world_size={dist.get_world_size()}.")
 
     # Load model:
-    block_kwargs = {"fused_attn": args.fused_attn, "qk_norm": args.qk_norm, "ops_head": args.ops_head}
+    block_kwargs = {"fused_attn": args.fused_attn, "qk_norm": args.qk_norm}
     latent_size = args.resolution // 8
     model = SiT_models[args.model](
         input_size=latent_size,
@@ -72,6 +72,7 @@ def main(args):
     ).to(device)
     # Auto-download a pre-trained model or load a custom SiT checkpoint from train.py:
     ckpt_path = args.ckpt
+
 
     #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     if ckpt_path is None:
@@ -93,15 +94,14 @@ def main(args):
 
     model.eval()  # important!
     vae = AutoencoderKL.from_pretrained(f"stabilityai/sd-vae-ft-{args.vae}").to(device)
+    #vae = AutoencoderKL.from_pretrained(pretrained_model_name_or_path="your_local_path/weight/").to(device)
 
-    #assert args.cfg_scale >= 1.0, "In almost all cases, cfg_scale be >= 1.0"
-    using_cfg = args.cfg_scale > 1.0
 
     # Create folder to save samples:
     model_string_name = args.model.replace("/", "-")
     ckpt_string_name = os.path.basename(args.ckpt).replace(".pt", "") if args.ckpt else "pretrained"
     folder_name = f"{model_string_name}-{ckpt_string_name}-size-{args.resolution}-vae-{args.vae}-" \
-                  f"cfg-{args.cfg_scale}-seed-{args.global_seed}-{args.mode}-{args.guidance_high}"
+                  f"cfg-{args.cfg_scale}-seed-{args.global_seed}-{args.mode}-{args.guidance_high}-{args.cls_cfg_scale}"
     sample_folder_dir = f"{args.sample_dir}/{folder_name}"
     if rank == 0:
         os.makedirs(sample_folder_dir, exist_ok=True)
@@ -142,12 +142,14 @@ def main(args):
             guidance_high=args.guidance_high,
             path_type=args.path_type,
             cls_latents=cls_z,
+            args=args
         )
         with torch.no_grad():
             if args.mode == "sde":
                 samples = euler_maruyama_sampler(**sampling_kwargs).to(torch.float32)
-            elif args.mode == "ode":
-                samples = euler_sampler(**sampling_kwargs).to(torch.float32)
+            elif args.mode == "ode":# will support
+                exit()
+                #samples = euler_sampler(**sampling_kwargs).to(torch.float32)
             else:
                 raise NotImplementedError()
 
@@ -198,7 +200,6 @@ if __name__ == "__main__":
     parser.add_argument("--resolution", type=int, choices=[256, 512], default=256)
     parser.add_argument("--fused-attn", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--qk-norm", action=argparse.BooleanOptionalAction, default=False)
-    parser.add_argument('--ops-head', default=12, type=int)
     # vae
     parser.add_argument("--vae",  type=str, choices=["ema", "mse"], default="ema")
 
@@ -209,6 +210,7 @@ if __name__ == "__main__":
     # sampling related hyperparameters
     parser.add_argument("--mode", type=str, default="ode")
     parser.add_argument("--cfg-scale",  type=float, default=1.5)
+    parser.add_argument("--cls-cfg-scale",  type=float, default=1.5)
     parser.add_argument("--projector-embed-dims", type=str, default="768,1024")
     parser.add_argument("--path-type", type=str, default="linear", choices=["linear", "cosine"])
     parser.add_argument("--num-steps", type=int, default=50)
