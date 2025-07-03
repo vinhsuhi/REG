@@ -115,7 +115,12 @@ bash eval.sh
 ## Citation
 If you find our work, this repository, or pretrained models useful, please consider giving a star and citation.
 ```
-
+@article{wu2025reg,
+  title={Representation Entanglement for Generation: Training Diffusion Transformers Is Much Easier Than You Think},
+  author={Ge Wu and Shen Zhang and Ruijing Shi and Shanghua Gao and Zhenyuan Chen and Lei Wang and Zhaowei Chen and Hongcheng Gao and Yao Tang and Ming-Ming Cheng and Xiang Li},
+  journal={arXiv preprint arXiv:2507.01467},
+  year={2025}
+}
 ```
 
 ## Contact
