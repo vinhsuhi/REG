@@ -19,7 +19,7 @@
         $^{4}$ Harvard University, $^{5}$ University of Chinese Academy of Sciences 
         <p align='center'>
       <div align="center">
-      <a href=''><img src='https://img.shields.io/badge/?logo=arxiv&logoColor=white'></a>
+       <a href='https://arxiv.org/abs/2507.01467'><img src='https://img.shields.io/badge/arXiv-2507.01467-brown.svg?logo=arxiv&logoColor=white'></a>
 	  </div>
     <p align='center'>
     </p>
