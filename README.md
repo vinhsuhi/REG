@@ -124,7 +124,7 @@ If you find our work, this repository, or pretrained models useful, please consi
 ```
 
 ## Contact
-If you have any questions, please create an issue on this repository or contact at gewu.nku@gmail.com.
+If you have any questions, please create an issue on this repository, contact at gewu.nku@gmail.com or wechat(wg1158848).
 
 
 ## Acknowledgements
