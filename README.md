@@ -20,6 +20,7 @@
         <p align='center'>
       <div align="center">
        <a href='https://arxiv.org/abs/2507.01467'><img src='https://img.shields.io/badge/arXiv-2507.01467-brown.svg?logo=arxiv&logoColor=white'></a>
+	[![model](https://img.shields.io/badge/🤗-Model-blue.svg)](https://huggingface.co/Martinser/REG/tree/main)
 	  </div>
     <p align='center'>
     </p>
