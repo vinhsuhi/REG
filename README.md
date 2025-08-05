@@ -36,11 +36,30 @@ REPA and its variants effectively mitigate training challenges in diffusion mode
 We argue that the external alignment, which is absent during the entire denoising inference process, falls short of fully harnessing the potential of discriminative representations. 
 
 In this work, we propose a straightforward method called Representation Entanglement for Generation (REG), which entangles low-level image latents with a single high-level class token from pretrained foundation models for denoising. 
-REG acquires the capability to produce coherent image-class pairs directly from pure noise, substantially improving both generation quality and training efficiency. This is accomplished with negligible additional inference overhead, requiring only one single additional token for denoising (<0.5\% increase in FLOPs and latency).
+REG acquires the capability to produce coherent image-class pairs directly from pure noise, 
+substantially improving both generation quality and training efficiency. 
+This is accomplished with negligible additional inference overhead, **requiring only one single additional token for denoising (<0.5\% increase in FLOPs and latency).**
 The inference process concurrently reconstructs both image latents and their corresponding global semantics, where the acquired semantic knowledge actively guides and enhances the image generation process.
 
-On ImageNet $256{\times}256$, SiT-XL/2 + REG demonstrates remarkable convergence acceleration, achieving $\textbf{63}\times$ and $\textbf{23}\times$ faster training than SiT-XL/2 and SiT-XL/2 + REPA, respectively. 
+On ImageNet $256{\times}256$, SiT-XL/2 + REG demonstrates remarkable convergence acceleration, **achieving $\textbf{63}\times$ and $\textbf{23}\times$ faster training than SiT-XL/2 and SiT-XL/2 + REPA, respectively.** 
 More impressively, SiT-L/2 + REG trained for merely 400K iterations outperforms SiT-XL/2 + REPA trained for 4M iterations ($\textbf{10}\times$ longer).
+
+
+
+## 📰 News
+
+- **[2025.08.05]** We have released the pre-trained weights of REG + SiT-XL/2 in 4M (800 epochs).
+
+
+## 📝 Results
+
+- Performance on ImageNet $256{\times}256$ with FID=1.36 by introducing a single class token.
+- $\textbf{63}\times$ and $\textbf{23}\times$ faster training than SiT-XL/2 and SiT-XL/2 + REPA.
+
+<div align="center">
+<img src="fig/img.png" alt="Results">
+</div>
+
 
 ## 📋 Plan
 - More training steps on ImageNet 256&512 and T2I.
@@ -116,9 +135,9 @@ bash eval.sh
 ## Citation
 If you find our work, this repository, or pretrained models useful, please consider giving a star and citation.
 ```
-@article{wu2025reg,
+@article{wu2025representation,
   title={Representation Entanglement for Generation: Training Diffusion Transformers Is Much Easier Than You Think},
-  author={Ge Wu and Shen Zhang and Ruijing Shi and Shanghua Gao and Zhenyuan Chen and Lei Wang and Zhaowei Chen and Hongcheng Gao and Yao Tang and Ming-Ming Cheng and Xiang Li},
+  author={Wu, Ge and Zhang, Shen and Shi, Ruijing and Gao, Shanghua and Chen, Zhenyuan and Wang, Lei and Chen, Zhaowei and Gao, Hongcheng and Tang, Yao and Yang, Jian and others},
   journal={arXiv preprint arXiv:2507.01467},
   year={2025}
 }
